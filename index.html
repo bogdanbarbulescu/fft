@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Advanced Fourier Transform Visualizer</title>
+  <link rel="stylesheet" href="style.css"> <!-- Link to external CSS -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.5.0/math.min.js"></script>
+  <!-- Chart.js Plugins -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/1.2.1/chartjs-plugin-zoom.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-annotation/1.4.0/chartjs-plugin-annotation.min.js"></script>
+</head>
+<body>
+  <header>
+    <h1>Advanced Fourier Transform Visualizer</h1>
+    <button id="theme-toggle" class="theme-toggle">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-moon">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+      </svg>
+      <span>Dark Mode</span>
+    </button>
+  </header>
+
+  <div class="container">
+    <div class="left-panel">
+      <div class="card control-panel">
+        <h2>Signal Generator</h2>
+        <div class="control-group">
+          <div class="control-row">
+            <div class="control-item">
+              <label for="signal-type">Signal Type</label>
+              <select id="signal-type">
+                <option value="sine">Sine Wave</option>
+                <option value="square">Square Wave</option>
+                <option value="triangle">Triangle Wave</option>
+                <option value="sawtooth">Sawtooth Wave</option>
+                <option value="custom">Custom (Sum of Signals)</option>
+              </select>
+            </div>
+            <div class="control-item">
+              <label for="frequency">Frequency (Hz)
+                  <span class="tooltip">?<span class="tooltiptext">Base frequency for standard waves, ignored for custom. Max frequency is dynamically set based on sample rate.</span></span>
+              </label>
+              <input type="range" id="frequency" min="1" max="100" value="5" step="1">
+              <span class="value-display" id="frequency-value">5 Hz</span>
+            </div>
+          </div>
+          <div class="control-row">
+            <div class="control-item">
+              <label for="amplitude">Amplitude
+                 <span class="tooltip">?<span class="tooltiptext">Peak amplitude for standard waves, ignored for custom.</span></span>
+              </label>
+              <input type="range" id="amplitude" min="0.1" max="2" step="0.1" value="1">
+              <span class="value-display" id="amplitude-value">1.0</span>
+            </div>
+            <div class="control-item">
+              <label for="phase">Phase (degrees)
+                 <span class="tooltip">?<span class="tooltiptext">Phase shift for standard waves, ignored for custom.</span></span>
+              </label>
+              <input type="range" id="phase" min="0" max="360" value="0" step="1">
+              <span class="value-display" id="phase-value">0°</span>
+            </div>
+          </div>
+        </div>
+
+        <div id="custom-signals" style="display: none;">
+          <h3>Custom Signal Components</h3>
+          <div class="control-row">
+             <button id="add-component" style="flex-grow: 1;">Add Component</button>
+             <button id="remove-component" style="flex-grow: 1;" disabled>Remove Last</button>
+          </div>
+          <div class="component-signals" id="component-container">
+            <!-- Components will be added here -->
+          </div>
+        </div>
+
+        <div class="control-group">
+          <div class="control-row action-buttons">
+            <button id="generate-signal">Generate Signal</button>
+            <button id="mic-button">Use Mic Input</button>
+          </div>
+        </div>
+        
+        <h3>Import / Export</h3>
+        <div class="control-row file-io-buttons">
+            <div class="control-item">
+                <label for="import-file">Import Signal (WAV, CSV)</label>
+                <input type="file" id="import-file" accept=".wav,.csv">
+            </div>
+            <div class="control-item">
+                <button id="export-time-csv">Export Time CSV</button>
+            </div>
+             <div class="control-item">
+                <button id="export-freq-csv">Export Freq CSV</button>
+            </div>
+        </div>
+
+      </div>
+
+      <div class="card">
+        <h2>Signal Statistics</h2>
+        <div class="stats-grid">
+            <div class="stat-item"><strong id="stat-rms">0.00</strong><span>RMS</span></div>
+            <div class="stat-item"><strong id="stat-peak">0.00</strong><span>Peak</span></div>
+            <div class="stat-item"><strong id="stat-crest">0.00</strong><span>Crest Factor</span></div>
+            <div class="stat-item"><strong id="stat-thd">0.00%</strong><span>THD (Est.)</span></div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="right-panel">
+      <div class="card">
+        <h2>Signal Visualization</h2>
+        <div class="tabs">
+          <button class="tab active" data-tab="time-domain">Time Domain</button>
+          <button class="tab" data-tab="frequency-domain">Frequency Domain</button>
+          <button class="tab" data-tab="phase-spectrum">Phase Spectrum</button>
+          <button class="tab" data-tab="spectrogram">Spectrogram</button>
+          <button class="tab" data-tab="waterfall">Waterfall (3D Spec.)</button>
+        </div>
+
+        <div class="tab-content active" id="time-domain">
+          <div class="visualization">
+            <canvas id="time-domain-chart"></canvas>
+          </div>
+          <div class="help-text">
+            Signal amplitude over time. X-axis: Time (ms), Y-axis: Amplitude. (Zoom/Pan enabled)
+          </div>
+        </div>
+
+        <div class="tab-content" id="frequency-domain">
+          <div class="visualization">
+            <canvas id="frequency-domain-chart"></canvas>
+          </div>
+          <div class="help-text">
+            Frequency components magnitude. X-axis: Frequency (Hz), Y-axis: Magnitude. (Zoom/Pan & Peak Markers enabled)
+          </div>
+        </div>
+        
+        <div class="tab-content" id="phase-spectrum">
+          <div class="visualization">
+            <canvas id="phase-spectrum-chart"></canvas>
+          </div>
+          <div class="help-text">
+            Phase of frequency components. X-axis: Frequency (Hz), Y-axis: Phase (Radians). (Zoom/Pan enabled)
+          </div>
+        </div>
+
+        <div class="tab-content" id="spectrogram">
+          <div class="control-row">
+              <div class="control-item">
+                  <label for="spectrogram-colormap">Colormap</label>
+                  <select id="spectrogram-colormap">
+                      <option value="viridis">Viridis</option>
+                      <option value="grayscale">Grayscale</option>
+                      <option value="heatmap1">Heatmap 1 (R-G-B)</option>
+                      <option value="heatmap2">Heatmap 2 (B-G-R)</option>
+                  </select>
+              </div>
+              <div class="control-item">
+                  <label for="spectrogram-logscale">Log Freq. Scale</label>
+                  <input type="checkbox" id="spectrogram-logscale" style="width: auto;">
+              </div>
+          </div>
+           <div class="control-row">
+              <div class="control-item">
+                  <label for="spec-min-mag">Min Magnitude</label>
+                  <input type="number" id="spec-min-mag" value="0" step="0.01">
+              </div>
+              <div class="control-item">
+                  <label for="spec-max-mag">Max Magnitude</label>
+                  <input type="number" id="spec-max-mag" value="1" step="0.01">
+              </div>
+          </div>
+          <div class="visualization">
+            <canvas id="spectrogram-chart"></canvas>
+          </div>
+          <div class="help-text">
+            Frequency content over time. X: Time, Y: Frequency, Color: Intensity. Needs continuous input (Mic) or long generated signal.
+          </div>
+        </div>
+
+        <div class="tab-content" id="waterfall">
+            <div class="visualization">
+                <canvas id="waterfall-chart"></canvas>
+            </div>
+            <div class="help-text">
+              Conceptual 3D representation of the spectrogram. (Full 3D rendering is a complex feature, placeholder for now).
+            </div>
+        </div>
+      </div>
+
+      <div class="card"> <!-- Existing Applications Card -->
+        <h2>Applications</h2>
+        <div class="applications">
+          <button class="application-button active" data-app="audio-analyzer">Audio Analyzer</button>
+          <button class="application-button" data-app="filter-demo">Filter Demo</button>
+          <button class="application-button" data-app="harmonic-analyzer">Harmonic Analyzer</button>
+        </div>
+        <div id="application-container" style="margin-top: 20px;">
+          <div id="app-audio-analyzer" class="app-content active">
+             <div class="visualization"><canvas id="audio-analyzer-chart"></canvas></div>
+             <div class="help-text">Real-time frequency spectrum.</div>
+          </div>
+          <div id="app-filter-demo" class="app-content">
+            <div class="control-row">
+              <div class="control-item">
+                <label for="filter-type">Filter Type</label>
+                <select id="filter-type">
+                  <option value="lowpass">Low Pass</option>
+                  <option value="highpass">High Pass</option>
+                  <option value="bandpass">Band Pass</option>
+                  <option value="notch">Notch</option>
+                </select>
+              </div>
+              <div class="control-item">
+                <label for="cutoff-frequency">Cutoff/Center Freq (Hz)</label>
+                <input type="range" id="cutoff-frequency" min="1" max="200" value="50">
+                <span class="value-display" id="cutoff-value">50 Hz</span>
+              </div>
+              <div class="control-item" id="bandwidth-control" style="display: none;">
+                 <label for="bandwidth">Bandwidth (Hz)</label>
+                 <input type="range" id="bandwidth" min="1" max="50" value="10">
+                 <span class="value-display" id="bandwidth-value">10 Hz</span>
+              </div>
+            </div>
+            <div class="visualization"><canvas id="filter-demo-chart"></canvas></div>
+            <div class="help-text">Applies a digital filter to the frequency spectrum.</div>
+          </div>
+          <div id="app-harmonic-analyzer" class="app-content">
+             <div class="visualization"><canvas id="harmonic-analyzer-chart"></canvas></div>
+             <div class="help-text">Identifies fundamental frequency and harmonic strengths.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card"> <!-- Existing Component Breakdown -->
+        <h2>Component Breakdown (Top 5 Frequencies)</h2>
+        <div class="visualization">
+          <canvas id="component-breakdown-chart"></canvas>
+        </div>
+        <div class="help-text">
+          Individual sine waves for the 5 strongest frequency components.
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="footer">
+    <p>Advanced Fourier Transform Visualizer - Exploring signals in time, frequency, and phase.</p>
+  </div>
+
+  <script src="script.js"></script> <!-- Link to external JavaScript -->
+</body>
+</html>
